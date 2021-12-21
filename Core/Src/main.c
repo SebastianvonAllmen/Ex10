@@ -17,7 +17,6 @@
  ******************************************************************************
  */
 #include "main.h"
-#include "digitalInput.h"
 #include "chromatic_scale.h"
 #include "color.h"
 
@@ -26,17 +25,12 @@
 
 void SystemClock_Config(void);
 
-struct DigitalInput Up;
-struct DigitalInput Down;
-struct DigitalInput Left;
-struct DigitalInput Right;
 
 GPIO_TypeDef *GPIOA_handle = (GPIO_TypeDef*) GPIOA_BASE;
 GPIO_TypeDef *GPIOB_handle = (GPIO_TypeDef*) GPIOB_BASE;
 GPIO_TypeDef *GPIOC_handle = (GPIO_TypeDef*) GPIOC_BASE;
 
 //Function Defs
-void custom_DigitalInput_Init();
 void custom_TIM6_Init(void);
 void custom_NVIC_Init(void);
 void custom_GPIO(void);
@@ -184,41 +178,6 @@ void custom_TIM2_Init(void) {
 	SET_BIT(TIM2->EGR, TIM_EGR_UG);
 }
 
-void custom_DigitalInput_Init() {
-	DigitalInput_Init(&Up, GPIOA_handle, 4);
-	DigitalInput_Init(&Down, GPIOB_handle, 0);
-	DigitalInput_Init(&Left, GPIOC_handle, 1);
-	DigitalInput_Init(&Right, GPIOC_handle, 0);
-	Up.callbackRisingEdge = volume_Handler;
-	Down.callbackRisingEdge = volume_Handler;
-	Right.callbackRisingEdge = note_Handler;
-	Left.callbackRisingEdge = note_Handler;
-
-	//Init GPIOs for PWM
-	//Red LED
-	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE4_0);
-	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE4_1);
-
-	GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
-	GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
-	TIM_LED_PWM_Init(TIM3, 1);
-
-	//Green
-	CLEAR_BIT(GPIOC->MODER, GPIO_MODER_MODE7_0);
-	SET_BIT(GPIOC->MODER, GPIO_MODER_MODE7_1);
-
-	GPIOC->AFR[0] &= ~GPIO_AFRL_AFSEL7_Msk;
-	GPIOC->AFR[0] |= GPIO_AFRL_AFSEL7_0 * 0b0010;
-	TIM_LED_PWM_Init(TIM3, 2);
-
-	//Blue
-	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE9_0);
-	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE9_1);
-
-	GPIOA->AFR[1] &= ~GPIO_AFRH_AFSEL9_Msk;
-	GPIOA->AFR[1] |= GPIO_AFRH_AFSEL9_0 * 0b0001;
-	TIM_LED_PWM_Init(TIM1, 2);
-}
 
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num)
 {
