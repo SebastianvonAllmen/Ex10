@@ -42,6 +42,7 @@ void custom_TIM1_Init(void);
 void custom_TIM3_Init(void);
 void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num);
+void USART_Init(USART_TypeDef *USARTx);
 
 #define MAX_VOLUME 8
 #define MIN_VOLUME 0
@@ -53,26 +54,26 @@ int main(void) {
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOC_CLK_ENABLE();
-	__HAL_RCC_TIM6_CLK_ENABLE();
-	__HAL_RCC_TIM2_CLK_ENABLE();
 	__HAL_RCC_TIM1_CLK_ENABLE();
+	__HAL_RCC_TIM2_CLK_ENABLE();
 	__HAL_RCC_TIM3_CLK_ENABLE();
+	__HAL_RCC_TIM6_CLK_ENABLE();
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
+	__HAL_RCC_USART2_CLK_ENABLE();
 
 	//Inits
-	custom_DigitalInput_Init();
-	custom_TIM6_Init();
 	custom_NVIC_Init();
 	custom_GPIO();
+	custom_TIM1_Init();
 	custom_TIM2_Init();
 	custom_TIM3_Init();
-	custom_TIM1_Init();
+	custom_TIM6_Init();
 
-
-	SET_BIT(TIM6->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM1->CR1, TIM_CR1_CEN);
+	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM3->CR1, TIM_CR1_CEN);
+	SET_BIT(TIM6->CR1, TIM_CR1_CEN);
+
 
 	while (true) {
 
@@ -217,7 +218,6 @@ void custom_NVIC_Init(void) {
 }
 
 void custom_GPIO(void) {
-
 	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE10_0);
 	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE10_1);
 	SET_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_0);
@@ -229,6 +229,62 @@ void custom_GPIO(void) {
 	SET_BIT(GPIOB_handle->MODER, GPIO_MODER_MODE4_0);
 	CLEAR_BIT(GPIOB_handle->MODER, GPIO_MODER_MODE4_1);
 
+}
+
+void USART_Init(USART_TypeDef *USARTx) {
+	// PA2 USART2
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE2_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE2_1);
+	// PA3 USART2
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE3_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE3_1);
+
+	// Alternate function AF7 PA2 and PA3
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk, 0x7 << GPIO_AFRL_AFSEL2_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk, 0x7 << GPIO_AFRL_AFSEL3_Pos);
+
+	// Set Speed high on PA2 and PA3
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk, 0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk, 0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
+
+	// PA2 00 := No pull−up/ pull−down 01 := pull−up
+	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_0);
+	CLEAR_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_1);
+
+	// PA3 00 := No pull−up/ pull−down
+	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD3_0);
+	CLEAR_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD3_1);
+
+	// Output type PA2 open−drain
+	SET_BIT(GPIOA->OTYPER, GPIO_OTYPER_OT2);
+
+	// Output type PA3 open−drain
+	SET_BIT(GPIOA->OTYPER, GPIO_OTYPER_OT3);
+
+	//Disable Usart
+	CLEAR_BIT(USARTx->CR1, USART_CR1_UE);
+	//SET data length to 8
+	CLEAR_BIT(USARTx->CR1, USART_CR1_M);
+	//Select 1 stop bit
+	CLEAR_BIT(USARTx->CR2, USART_CR2_STOP_0);
+	CLEAR_BIT(USARTx->CR2, USART_CR2_STOP_1);
+	//Set Parity control to no parity
+	CLEAR_BIT(USARTx->CR1, USART_CR1_PCE);
+	//Set oversampling to 16
+	CLEAR_BIT(USARTx->CR1, USART_CR1_OVER8);
+	//Set Baud RAte 115200 on a 16MHz ref clk
+	//WRITE_REG(USARTx->BRR, 0x8B);
+	//Set Baud RAte 115200 on a 8MHz pclk clk **Watch in Sysclock init**
+	//WRITE_REG(USARTx->BRR, 0x45);
+	//Set Baud RAte 9600 on a 16MHz ref clk
+	// (16 MHz / 2) / (8 * 2 * 9600) * 100 = 5208.3333
+	// -> Id = 52
+	// (8.3333) * 8 * 2 = 133.33
+	USART2->BRR = 0x45;
+	//Enable Transmisson and reception
+	SET_BIT(USARTx->CR1, (USART_CR1_TE | USART_CR1_RE));
+	//Enable USART
+	SET_BIT(USARTx->CR1, USART_CR1_UE);
 }
 
 /**
