@@ -31,24 +31,20 @@ GPIO_TypeDef *GPIOB_handle = (GPIO_TypeDef*) GPIOB_BASE;
 GPIO_TypeDef *GPIOC_handle = (GPIO_TypeDef*) GPIOC_BASE;
 
 //Function Defs
-void custom_TIM6_Init(void);
-void custom_NVIC_Init(void);
 void custom_GPIO(void);
-void toggle_RED_LED(struct DigitalInput *self);
-void custom_TIM2_Init();
-void note_Handler(struct DigitalInput *self);
-void volume_Handler(struct DigitalInput *self);
 void custom_TIM1_Init(void);
+void custom_TIM2_Init(void);
 void custom_TIM3_Init(void);
 void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num);
-void USART_Init(USART_TypeDef *USARTx);
+void custom_USART2_Init(USART_TypeDef *USARTx);
+void custom_NVIC_Init(void);
 
 #define MAX_VOLUME 8
 #define MIN_VOLUME 0
 
 int main(void) {
-	/* System Config */
+	/* System Configuration */
 	HAL_Init();
 	SystemClock_Config();
 	__HAL_RCC_GPIOA_CLK_ENABLE();
@@ -57,22 +53,25 @@ int main(void) {
 	__HAL_RCC_TIM1_CLK_ENABLE();
 	__HAL_RCC_TIM2_CLK_ENABLE();
 	__HAL_RCC_TIM3_CLK_ENABLE();
-	__HAL_RCC_TIM6_CLK_ENABLE();
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
 	__HAL_RCC_USART2_CLK_ENABLE();
 
 	//Inits
-	custom_NVIC_Init();
 	custom_GPIO();
+	custom_USART2_Init(USART2);
+	custom_NVIC_Init();
+
 	custom_TIM1_Init();
 	custom_TIM2_Init();
 	custom_TIM3_Init();
-	custom_TIM6_Init();
 
+	//Copy that to timerinits
 	SET_BIT(TIM1->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM3->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM6->CR1, TIM_CR1_CEN);
+
+	//Enable interrupt Routine for USART
+	SET_BIT(USART2->CR1, USART_CR1_RXNEIE_Msk);
 
 
 	while (true) {
@@ -90,22 +89,16 @@ void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]){
 	TIM1->CCR2 = colors[BLUE]; // B
 }
 
-void note_Handler(struct DigitalInput *self) {
-	const uint32_t length =  sizeof(NOTES_PSC_16MHz)/sizeof(uint16_t);
-	static uint32_t note = length/2;
-
-	if (self == &Right) {
-		if (note < length)
-			++note;
-	}
-
-	if (self == &Left) {
-		if (note > 0)
-			--note;
-	}
-
-	WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[note]);
-	led_Handler(COLORS[note % 12]);
+void custom_TIM1_Init(void) {
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_0);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_1);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_2);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2PE);
+	SET_BIT(TIM1->CCER, TIM_CCER_CC2E);
+	SET_BIT(TIM1->BDTR, TIM_BDTR_MOE);
+	WRITE_REG(TIM1->ARR, 1 << 8);
+	// Transfer Initialization to Shadow Register
+	SET_BIT(TIM1->EGR, TIM_EGR_UG);
 }
 
 void custom_TIM3_Init(void) {
@@ -122,48 +115,6 @@ void custom_TIM3_Init(void) {
 	WRITE_REG(TIM3->ARR, 1 << 8);
 	// Transfer Initialization to Shadow Register
 	SET_BIT(TIM3->EGR, TIM_EGR_UG);
-}
-
-void custom_TIM1_Init(void) {
-	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_0);
-	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_1);
-	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_2);
-	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2PE);
-	SET_BIT(TIM1->CCER, TIM_CCER_CC2E);
-	SET_BIT(TIM1->BDTR, TIM_BDTR_MOE);
-	WRITE_REG(TIM1->ARR, 1 << 8);
-	// Transfer Initialization to Shadow Register
-	SET_BIT(TIM1->EGR, TIM_EGR_UG);
-}
-
-void volume_Handler(struct DigitalInput *self) {
-	static uint32_t volume = 0;
-
-	if (self == &Up) {
-		if (volume < MAX_VOLUME )
-			++volume;
-	}
-
-	if(self == &Down) {
-		if (volume > MIN_VOLUME )
-			--volume;
-	}
-
-	WRITE_REG(TIM2->CCR3, 1 << (volume - 1));
-}
-
-void TIM6_DAC_IRQHandler(void) {
-	DigitalInput_Sample(&Up);
-	DigitalInput_Sample(&Down);
-	DigitalInput_Sample(&Left);
-	DigitalInput_Sample(&Right);
-}
-
-void toggle_RED_LED(struct DigitalInput *self) {
-	if (READ_BIT(GPIOB->ODR, GPIO_ODR_OD4))
-		CLEAR_BIT(GPIOB->ODR, GPIO_ODR_OD4);
-	else
-		SET_BIT(GPIOB->ODR, GPIO_ODR_OD4);
 }
 
 void custom_TIM2_Init(void) {
@@ -211,12 +162,6 @@ void custom_TIM6_Init(void) {
 	WRITE_REG(TIM6->ARR, 1000 - 1);
 }
 
-void custom_NVIC_Init(void) {
-	NVIC_SetPriority(TIM6_DAC_IRQn, 2);
-	NVIC_ClearPendingIRQ(TIM6_DAC_IRQn);
-	NVIC_EnableIRQ(TIM6_DAC_IRQn);
-}
-
 void custom_GPIO(void) {
 	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE10_0);
 	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE10_1);
@@ -231,7 +176,7 @@ void custom_GPIO(void) {
 
 }
 
-void USART_Init(USART_TypeDef *USARTx) {
+void custom_USART2_Init(USART_TypeDef *USARTx) {
 	// PA2 USART2
 	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE2_0);
 	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE2_1);
@@ -286,6 +231,23 @@ void USART_Init(USART_TypeDef *USARTx) {
 	//Enable USART
 	SET_BIT(USARTx->CR1, USART_CR1_UE);
 }
+
+
+void USART2_IRQHandler(void) {
+	unsigned char c;
+	/*
+	TODO: Read the data input register of USART2 and store i t to the char ’ c ’
+
+	TODO: Send the char ’ c ’ back as echo .
+	 */
+}
+
+void custom_NVIC_Init(void) {
+	NVIC_SetPriority(TIM6_DAC_IRQn, 2);
+	NVIC_ClearPendingIRQ(TIM6_DAC_IRQn);
+	NVIC_EnableIRQ(TIM6_DAC_IRQn);
+}
+
 
 /**
  * @brief System Clock Configuration
