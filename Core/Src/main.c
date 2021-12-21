@@ -22,6 +22,7 @@
 
 #include <stdlib.h>   /* For EXIT_SUCCESS */
 #include <stdbool.h>  /* For true  */
+#include <ctype.h> /* For toupper */
 
 void SystemClock_Config(void);
 
@@ -39,9 +40,8 @@ void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num);
 void custom_USART2_Init(USART_TypeDef *USARTx);
 void custom_NVIC_Init(void);
-
-#define MAX_VOLUME 8
-#define MIN_VOLUME 0
+void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer);
+void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength);
 
 int main(void) {
 	/* System Configuration */
@@ -66,13 +66,12 @@ int main(void) {
 	custom_TIM3_Init();
 
 	//Copy that to timerinits
-	SET_BIT(TIM1->CR1, TIM_CR1_CEN);
+	/*SET_BIT(TIM1->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM3->CR1, TIM_CR1_CEN);
+	SET_BIT(TIM3->CR1, TIM_CR1_CEN);*/
 
 	//Enable interrupt Routine for USART
 	SET_BIT(USART2->CR1, USART_CR1_RXNEIE_Msk);
-
 
 	while (true) {
 
@@ -152,16 +151,6 @@ void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num)
 	t->EGR |= TIM_EGR_UG; // Clean start + Shadow Register update
 }
 
-void custom_TIM6_Init(void) {
-	SET_BIT(TIM6->CR1, TIM_CR1_ARPE);
-	SET_BIT(TIM6->CR1, TIM_CR1_URS);
-	SET_BIT(TIM6->DIER, TIM_DIER_UIE);
-	CLEAR_BIT(TIM6->SR, TIM_SR_UIF);
-	WRITE_REG(TIM6->CNT, 0);
-	WRITE_REG(TIM6->PSC, 160 - 1);
-	WRITE_REG(TIM6->ARR, 1000 - 1);
-}
-
 void custom_GPIO(void) {
 	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE10_0);
 	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE10_1);
@@ -232,20 +221,42 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 	SET_BIT(USARTx->CR1, USART_CR1_UE);
 }
 
+void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength) {
+	for(uint32_t index = 0; index < msgLength; ++index) {
+		// Wait for transfer from DR to to shift register
+		while(!(USARTx->SR & USART_SR_TXE)) { ; }
+		USARTx->DR = buffer[index] & 0xFF;
+	}
+	// Wait for transmission completion
+	while(!(USARTx->SR & USART_SR_TC)) { ; }
+}
+
+void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer) {
+	if (buffer) {
+		//Wait until data receives in the DR
+		while(!(USARTx->SR & USART_SR_RXNE)) {;}
+		*buffer = USARTx->DR;
+	}
+}
 
 void USART2_IRQHandler(void) {
 	unsigned char c;
+	uint8_t * buffer = malloc(sizeof(uint8_t));
 	/*
 	TODO: Read the data input register of USART2 and store i t to the char ’ c ’
 
 	TODO: Send the char ’ c ’ back as echo .
 	 */
+	USART_ReadByte(USART2, buffer);
+	*buffer = toupper(*buffer);
+	USART_Write(USART2, buffer, 1);
+	for (int i = 0; i < 0x1FFFF; ++i) {;}
 }
 
 void custom_NVIC_Init(void) {
-	NVIC_SetPriority(TIM6_DAC_IRQn, 2);
-	NVIC_ClearPendingIRQ(TIM6_DAC_IRQn);
-	NVIC_EnableIRQ(TIM6_DAC_IRQn);
+	NVIC_SetPriority(USART2_IRQn, 2);
+	NVIC_ClearPendingIRQ(USART2_IRQn);
+	NVIC_EnableIRQ(USART2_IRQn);
 }
 
 
