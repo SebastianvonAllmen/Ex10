@@ -36,6 +36,7 @@ void custom_GPIO(void);
 void custom_TIM1_Init(void);
 void custom_TIM2_Init(void);
 void custom_TIM3_Init(void);
+void custom_TIM7_Init(void);
 void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num);
 void custom_USART2_Init(USART_TypeDef *USARTx);
@@ -100,6 +101,19 @@ void custom_TIM1_Init(void) {
 	SET_BIT(TIM1->EGR, TIM_EGR_UG);
 }
 
+void custom_TIM2_Init(void) {
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_0);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_1);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_2);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3PE);
+	SET_BIT(TIM2->CCER, TIM_CCER_CC3E);
+	WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[CONCERT_PITCH_INDEX]);
+	WRITE_REG(TIM2->ARR, 1 << 9);
+	WRITE_REG(TIM2->CCR3, 1 << 7);
+	// Transfer Initialization to Shadow Register
+	SET_BIT(TIM2->EGR, TIM_EGR_UG);
+}
+
 void custom_TIM3_Init(void) {
 	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_0);
 	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_1);
@@ -116,17 +130,15 @@ void custom_TIM3_Init(void) {
 	SET_BIT(TIM3->EGR, TIM_EGR_UG);
 }
 
-void custom_TIM2_Init(void) {
-	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_0);
-	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_1);
-	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_2);
-	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3PE);
-	SET_BIT(TIM2->CCER, TIM_CCER_CC3E);
-	WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[CONCERT_PITCH_INDEX]);
-	WRITE_REG(TIM2->ARR, 1 << 9);
-	WRITE_REG(TIM2->CCR3, 1 << 7);
-	// Transfer Initialization to Shadow Register
-	SET_BIT(TIM2->EGR, TIM_EGR_UG);
+void custom_TIM7_Init(void) {
+	SET_BIT(TIM7->CR1, TIM_CR1_ARPE);
+	SET_BIT(TIM7->CR1, TIM_CR1_URS);
+	SET_BIT(TIM7->CR1, TIM_CR1_OPM);
+	SET_BIT(TIM7->DIER, TIM_DIER_UIE);
+	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
+	WRITE_REG(TIM7->CNT, 0);
+	WRITE_REG(TIM7->PSC, 160 - 1);
+	WRITE_REG(TIM7->ARR, 1000 - 1);
 }
 
 
@@ -241,16 +253,10 @@ void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer) {
 
 void USART2_IRQHandler(void) {
 	unsigned char c;
-	uint8_t * buffer = malloc(sizeof(uint8_t));
-	/*
-	TODO: Read the data input register of USART2 and store i t to the char ’ c ’
 
-	TODO: Send the char ’ c ’ back as echo .
-	 */
-	USART_ReadByte(USART2, buffer);
-	*buffer = toupper(*buffer);
-	USART_Write(USART2, buffer, 1);
-	for (int i = 0; i < 0x1FFFF; ++i) {;}
+	USART_ReadByte(USART2, &c);
+	c = toupper(c);
+	USART_Write(USART2, &c, 1);
 }
 
 void custom_NVIC_Init(void) {
@@ -259,6 +265,25 @@ void custom_NVIC_Init(void) {
 	NVIC_EnableIRQ(USART2_IRQn);
 }
 
+
+void startNote(unsigned char c) {
+	#define A0_OFFSET (21)
+	int8_t note = 42; // later use a key to note mapping function i.e. keyToNote ( c )
+
+	if (note >= 0) {
+		// Convert Notes from 0 to 15 to index
+		uint8_t noteIndex = A0_OFFSET + note + octave * 12;
+		// Set Frequency
+		WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[noteIndex]);
+		/*
+		*TODO: Configure to PWM mode (LED, Speaker)
+		*/
+		led_Handler(COLORS[(noteIndex + 4) % NUMBER_OF_COLORS]);
+		/*
+		*TODO: Start TIM7
+		*/
+	}
+}
 
 /**
  * @brief System Clock Configuration
