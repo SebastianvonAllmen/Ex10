@@ -19,6 +19,7 @@
 #include "main.h"
 #include "chromatic_scale.h"
 #include "color.h"
+#include "controllfc.h"
 
 #include <stdlib.h>   /* For EXIT_SUCCESS */
 #include <stdbool.h>  /* For true  */
@@ -40,6 +41,7 @@ void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num);
 void custom_USART2_Init(USART_TypeDef *USARTx);
 void custom_NVIC_Init(void);
+void custom_DigitalOutput_Init(void);
 void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer);
 void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength);
 void startNote(unsigned char c);
@@ -63,6 +65,7 @@ int main(void) {
 	custom_GPIO();
 	custom_USART2_Init(USART2);
 	custom_NVIC_Init();
+	custom_DigitalOutput_Init();
 
 	custom_TIM1_Init();
 	custom_TIM2_Init();
@@ -134,7 +137,10 @@ void custom_TIM7_Init(void) {
 	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
 	WRITE_REG(TIM7->CNT, 0);
 	WRITE_REG(TIM7->PSC, 62500 - 1);
-	WRITE_REG(TIM7->ARR, 33 - 1);
+	WRITE_REG(TIM7->ARR, 48);
+
+	//Set initial volume pretty high
+	WRITE_REG(TIM2->CCR3, 1 << (8 - 1));
 }
 
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
@@ -153,6 +159,41 @@ void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
 	t->PSC = 800 - 1; // Optional
 
 	t->EGR |= TIM_EGR_UG; // Clean start + Shadow Register update
+}
+
+void custom_DigitalOutput_Init() {
+	//Init GPIOs for PWM
+	//Red LED
+	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE4_0);
+	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE4_1);
+
+	GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
+	GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
+	TIM_LED_PWM_Init(TIM3, 1);
+
+	//Green
+	CLEAR_BIT(GPIOC->MODER, GPIO_MODER_MODE7_0);
+	SET_BIT(GPIOC->MODER, GPIO_MODER_MODE7_1);
+
+	GPIOC->AFR[0] &= ~GPIO_AFRL_AFSEL7_Msk;
+	GPIOC->AFR[0] |= GPIO_AFRL_AFSEL7_0 * 0b0010;
+	TIM_LED_PWM_Init(TIM3, 2);
+
+	//Blue
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE9_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE9_1);
+
+	GPIOA->AFR[1] &= ~GPIO_AFRH_AFSEL9_Msk;
+	GPIOA->AFR[1] |= GPIO_AFRH_AFSEL9_0 * 0b0001;
+	TIM_LED_PWM_Init(TIM1, 2);
+
+	//Speaker
+	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE10_0);
+	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE10_1);
+	SET_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_0);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_1);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_2);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_3);
 }
 
 void custom_GPIO(void) {
@@ -263,7 +304,10 @@ void USART2_IRQHandler(void) {
 }
 
 void TIM7_IRQHandler(void) {
-	stopNote();
+	if(READ_BIT(TIM7->SR, TIM_SR_UIF) != 0) {
+		CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
+		stopNote();
+	}
 }
 
 void custom_NVIC_Init(void) {
@@ -280,7 +324,7 @@ void custom_NVIC_Init(void) {
 
 void startNote(unsigned char c) {
 #define A0_OFFSET (21)
-	int8_t note = 42; // later use a key to note mapping function i.e. keyToNote ( c )
+	int8_t note = keyToNote(c);
 	int8_t octave = 1;
 
 	if (note >= 0) {
@@ -289,20 +333,8 @@ void startNote(unsigned char c) {
 		// Set Frequency
 		WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[noteIndex]);
 
-		//Init GPIOs for PWM
-		//Red LED
-		CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE4_0);
-		SET_BIT(GPIOB->MODER, GPIO_MODER_MODE4_1);
-
-		GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
-		GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
-		TIM_LED_PWM_Init(TIM3, 1);
-
-
-
 		//For testing turn on the red LED
 		CLEAR_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
-
 
 		//Start Timers
 		SET_BIT(TIM1->CR1, TIM_CR1_CEN);
