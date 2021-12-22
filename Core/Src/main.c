@@ -26,7 +26,6 @@
 
 void SystemClock_Config(void);
 
-
 GPIO_TypeDef *GPIOA_handle = (GPIO_TypeDef*) GPIOA_BASE;
 GPIO_TypeDef *GPIOB_handle = (GPIO_TypeDef*) GPIOB_BASE;
 GPIO_TypeDef *GPIOC_handle = (GPIO_TypeDef*) GPIOC_BASE;
@@ -43,6 +42,8 @@ void custom_USART2_Init(USART_TypeDef *USARTx);
 void custom_NVIC_Init(void);
 void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer);
 void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength);
+void startNote(unsigned char c);
+void stopNote();
 
 int main(void) {
 	/* System Configuration */
@@ -67,12 +68,14 @@ int main(void) {
 	custom_TIM3_Init();
 
 	//Copy that to timerinits
-	/*SET_BIT(TIM1->CR1, TIM_CR1_CEN);
+	SET_BIT(TIM1->CR1, TIM_CR1_CEN);
 	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM3->CR1, TIM_CR1_CEN);*/
+	SET_BIT(TIM3->CR1, TIM_CR1_CEN);
 
 	//Enable interrupt Routine for USART
 	SET_BIT(USART2->CR1, USART_CR1_RXNEIE_Msk);
+
+	//Enable interupt for TIM7
 
 	while (true) {
 
@@ -81,9 +84,7 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
-
-
-void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]){
+void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]) {
 	TIM3->CCR1 = colors[RED]; // R
 	TIM3->CCR2 = colors[GREEN]; // G
 	TIM1->CCR2 = colors[BLUE]; // B
@@ -137,19 +138,15 @@ void custom_TIM7_Init(void) {
 	SET_BIT(TIM7->DIER, TIM_DIER_UIE);
 	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
 	WRITE_REG(TIM7->CNT, 0);
-	WRITE_REG(TIM7->PSC, 160 - 1);
-	WRITE_REG(TIM7->ARR, 1000 - 1);
+	WRITE_REG(TIM7->PSC, 62500 - 1);
+	WRITE_REG(TIM7->ARR, 100 - 1);
 }
 
-
-void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num)
-{
+void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
 	// PWM Mode 1
 
 	// Output compare 2, mode 0b0111 : S.568
-	uint16_t flags = TIM_CCMR1_OC1M_0
-			| TIM_CCMR1_OC1M_1
-			| TIM_CCMR1_OC1M_2
+	uint16_t flags = TIM_CCMR1_OC1M_0 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2
 			| TIM_CCMR1_OC1PE;
 	t->CCMR1 |= flags << (8 * (ccmr_num - 1));
 	// Compare register output enable
@@ -186,12 +183,16 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE3_1);
 
 	// Alternate function AF7 PA2 and PA3
-	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk, 0x7 << GPIO_AFRL_AFSEL2_Pos);
-	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk, 0x7 << GPIO_AFRL_AFSEL3_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk,
+			0x7 << GPIO_AFRL_AFSEL2_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk,
+			0x7 << GPIO_AFRL_AFSEL3_Pos);
 
 	// Set Speed high on PA2 and PA3
-	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk, 0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
-	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk, 0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk,
+			0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk,
+			0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
 
 	// PA2 00 := No pull−up/ pull−down 01 := pull−up
 	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_0);
@@ -234,19 +235,25 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 }
 
 void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength) {
-	for(uint32_t index = 0; index < msgLength; ++index) {
+	for (uint32_t index = 0; index < msgLength; ++index) {
 		// Wait for transfer from DR to to shift register
-		while(!(USARTx->SR & USART_SR_TXE)) { ; }
+		while (!(USARTx->SR & USART_SR_TXE)) {
+			;
+		}
 		USARTx->DR = buffer[index] & 0xFF;
 	}
 	// Wait for transmission completion
-	while(!(USARTx->SR & USART_SR_TC)) { ; }
+	while (!(USARTx->SR & USART_SR_TC)) {
+		;
+	}
 }
 
 void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer) {
 	if (buffer) {
 		//Wait until data receives in the DR
-		while(!(USARTx->SR & USART_SR_RXNE)) {;}
+		while (!(USARTx->SR & USART_SR_RXNE)) {
+			;
+		}
 		*buffer = USARTx->DR;
 	}
 }
@@ -255,34 +262,68 @@ void USART2_IRQHandler(void) {
 	unsigned char c;
 
 	USART_ReadByte(USART2, &c);
+	startNote(c);
 	c = toupper(c);
 	USART_Write(USART2, &c, 1);
 }
 
+void TIM7_IRQHandler(void) {
+	stopNote();
+}
+
 void custom_NVIC_Init(void) {
+	//Interrupt USART2
 	NVIC_SetPriority(USART2_IRQn, 2);
 	NVIC_ClearPendingIRQ(USART2_IRQn);
 	NVIC_EnableIRQ(USART2_IRQn);
+
+	//Interrupt TIM7
+	NVIC_SetPriority(TIM7_IRQn, 1);
+	NVIC_ClearPendingIRQ(TIM7_IRQn);
+	NVIC_EnableIRQ(TIM7_IRQn);
 }
 
-
 void startNote(unsigned char c) {
-	#define A0_OFFSET (21)
+#define A0_OFFSET (21)
 	int8_t note = 42; // later use a key to note mapping function i.e. keyToNote ( c )
+	int8_t octave = 5;
 
 	if (note >= 0) {
 		// Convert Notes from 0 to 15 to index
 		uint8_t noteIndex = A0_OFFSET + note + octave * 12;
 		// Set Frequency
 		WRITE_REG(TIM2->PSC, NOTES_PSC_16MHz[noteIndex]);
+
+		//Init GPIOs for PWM
+		//Red LED
+		CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE4_0);
+		SET_BIT(GPIOB->MODER, GPIO_MODER_MODE4_1);
+
+		GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
+		GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
+		//TIM_LED_PWM_Init(TIM3, 1);
+
+		//For testing turn on the red LED
+		CLEAR_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
+
 		/*
-		*TODO: Configure to PWM mode (LED, Speaker)
-		*/
+		//Start Timers
+		SET_BIT(TIM1->CR1, TIM_CR1_CEN);
+		SET_BIT(TIM2->CR1, TIM_CR1_CEN);
+		SET_BIT(TIM3->CR1, TIM_CR1_CEN);*/
+
 		led_Handler(COLORS[(noteIndex + 4) % NUMBER_OF_COLORS]);
-		/*
-		*TODO: Start TIM7
-		*/
+
+		//Start TIM7
+		SET_BIT(TIM7->CR1, TIM_CR1_CEN);
 	}
+}
+
+void stopNote(void) {
+	/*
+	 TODO: Configure to forced output mode (LED, Speaker)
+	 */
+	SET_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
 }
 
 /**
