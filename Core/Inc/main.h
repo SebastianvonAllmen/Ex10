@@ -63,6 +63,7 @@ void Error_Handler(void);
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
 /* USER CODE BEGIN Private defines */
+#define A0_OFFSET (21)
 
 /* USER CODE END Private defines */
 
