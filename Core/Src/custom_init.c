@@ -1,0 +1,171 @@
+#include "custom_init.h"
+
+
+void custom_TIM1_Init(void) {
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_0);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_1);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_2);
+	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2PE);
+	SET_BIT(TIM1->CCER, TIM_CCER_CC2E);
+	SET_BIT(TIM1->BDTR, TIM_BDTR_MOE);
+	WRITE_REG(TIM1->ARR, 1 << 8);
+	// Transfer Initialization to Shadow Register
+	SET_BIT(TIM1->EGR, TIM_EGR_UG);
+}
+
+void custom_TIM2_Init(void) {
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_0);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_1);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_2);
+	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3PE);
+	SET_BIT(TIM2->CCER, TIM_CCER_CC3E);
+	WRITE_REG(TIM2->PSC, 500); //We start of in the middle before using the notes array
+	WRITE_REG(TIM2->ARR, 1 << 9);
+	WRITE_REG(TIM2->CCR3, 1 << 7);
+	// Transfer Initialization to Shadow Register
+	SET_BIT(TIM2->EGR, TIM_EGR_UG);
+}
+
+void custom_TIM3_Init(void) {
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_0);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_1);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_2);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC2M_0);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC2M_1);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC2M_2);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1PE);
+	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC2PE);
+	SET_BIT(TIM3->CCER, TIM_CCER_CC1E);
+	SET_BIT(TIM3->CCER, TIM_CCER_CC2E);
+	WRITE_REG(TIM3->ARR, 1 << 8);
+	// Transfer Initialization to Shadow Register
+	SET_BIT(TIM3->EGR, TIM_EGR_UG);
+}
+
+void custom_TIM7_Init(void) {
+	SET_BIT(TIM7->CR1, TIM_CR1_ARPE);
+	SET_BIT(TIM7->CR1, TIM_CR1_URS);
+	SET_BIT(TIM7->CR1, TIM_CR1_OPM);
+	SET_BIT(TIM7->DIER, TIM_DIER_UIE);
+	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
+	WRITE_REG(TIM7->CNT, 0);
+	WRITE_REG(TIM7->PSC, 62500 - 1);
+	WRITE_REG(TIM7->ARR, 50); //Set initial tone duration to roughly 0.2s
+
+	//Set initial volume in the middle
+	WRITE_REG(TIM2->CCR3, 1 << (4 - 1));
+}
+
+void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
+	// PWM Mode 1
+
+	// Output compare 2, mode 0b0111 : S.568
+	uint16_t flags = TIM_CCMR1_OC1M_0 | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2
+			| TIM_CCMR1_OC1PE;
+	t->CCMR1 |= flags << (8 * (ccmr_num - 1));
+	// Compare register output enable
+	t->CCER |= (ccmr_num == 1) ? TIM_CCER_CC1E : TIM_CCER_CC2E;
+
+	t->BDTR |= TIM_BDTR_MOE; // Main Output Enable (S.514)
+
+	t->ARR = 256;     // Up to 256 levels
+	t->PSC = 800 - 1; // Optional
+
+	t->EGR |= TIM_EGR_UG; // Clean start + Shadow Register update
+}
+
+void custom_DigitalOutput_Init() {
+	//Init GPIOs for PWM
+	//Red LED
+	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE4_0);
+	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE4_1);
+
+	GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
+	GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
+	TIM_LED_PWM_Init(TIM3, 1);
+
+	//Green
+	CLEAR_BIT(GPIOC->MODER, GPIO_MODER_MODE7_0);
+	SET_BIT(GPIOC->MODER, GPIO_MODER_MODE7_1);
+
+	GPIOC->AFR[0] &= ~GPIO_AFRL_AFSEL7_Msk;
+	GPIOC->AFR[0] |= GPIO_AFRL_AFSEL7_0 * 0b0010;
+	TIM_LED_PWM_Init(TIM3, 2);
+
+	//Blue
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE9_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE9_1);
+
+	GPIOA->AFR[1] &= ~GPIO_AFRH_AFSEL9_Msk;
+	GPIOA->AFR[1] |= GPIO_AFRH_AFSEL9_0 * 0b0001;
+	TIM_LED_PWM_Init(TIM1, 2);
+
+	//Speaker
+	CLEAR_BIT(GPIOB->MODER, GPIO_MODER_MODE10_0);
+	SET_BIT(GPIOB->MODER, GPIO_MODER_MODE10_1);
+	SET_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_0);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_1);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_2);
+	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_3);
+}
+
+void custom_USART2_Init(USART_TypeDef *USARTx) {
+	// PA2 USART2
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE2_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE2_1);
+	// PA3 USART2
+	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE3_0);
+	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE3_1);
+
+	// Alternate function AF7 PA2 and PA3
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk, 0x7 << GPIO_AFRL_AFSEL2_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk, 0x7 << GPIO_AFRL_AFSEL3_Pos);
+
+	// Set Speed high on PA2 and PA3
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk, 0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk, 0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
+
+	// PA2 00 := No pull−up/ pull−down 01 := pull−up
+	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_0);
+	CLEAR_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_1);
+
+	// PA3 00 := No pull−up/ pull−down
+	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD3_0);
+	CLEAR_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD3_1);
+
+	// Output type PA2 open−drain
+	SET_BIT(GPIOA->OTYPER, GPIO_OTYPER_OT2);
+
+	// Output type PA3 open−drain
+	SET_BIT(GPIOA->OTYPER, GPIO_OTYPER_OT3);
+
+	//Disable Usart
+	CLEAR_BIT(USARTx->CR1, USART_CR1_UE);
+	//SET data length to 8
+	CLEAR_BIT(USARTx->CR1, USART_CR1_M);
+	//Select 1 stop bit
+	CLEAR_BIT(USARTx->CR2, USART_CR2_STOP_0);
+	CLEAR_BIT(USARTx->CR2, USART_CR2_STOP_1);
+	//Set Parity control to no parity
+	CLEAR_BIT(USARTx->CR1, USART_CR1_PCE);
+	//Set oversampling to 16
+	CLEAR_BIT(USARTx->CR1, USART_CR1_OVER8);
+	//Set Baud RAte 115200 on a 16MHz ref clock
+	USART2->BRR = 0x45;
+	//Enable Transmisson and reception
+	SET_BIT(USARTx->CR1, (USART_CR1_TE | USART_CR1_RE));
+	//Enable USART
+	SET_BIT(USARTx->CR1, USART_CR1_UE);
+}
+
+void custom_NVIC_Init(void) {
+	//Interrupt USART2
+	NVIC_SetPriority(USART2_IRQn, 2);
+	NVIC_ClearPendingIRQ(USART2_IRQn);
+	NVIC_EnableIRQ(USART2_IRQn);
+
+	//Interrupt TIM7
+	NVIC_SetPriority(TIM7_IRQn, 1);
+	NVIC_ClearPendingIRQ(TIM7_IRQn);
+	NVIC_EnableIRQ(TIM7_IRQn);
+}
