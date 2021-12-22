@@ -55,6 +55,7 @@ int main(void) {
 	__HAL_RCC_TIM1_CLK_ENABLE();
 	__HAL_RCC_TIM2_CLK_ENABLE();
 	__HAL_RCC_TIM3_CLK_ENABLE();
+	__HAL_RCC_TIM7_CLK_ENABLE();
 	__HAL_RCC_SYSCFG_CLK_ENABLE();
 	__HAL_RCC_USART2_CLK_ENABLE();
 
@@ -66,16 +67,10 @@ int main(void) {
 	custom_TIM1_Init();
 	custom_TIM2_Init();
 	custom_TIM3_Init();
-
-	//Copy that to timerinits
-	SET_BIT(TIM1->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM2->CR1, TIM_CR1_CEN);
-	SET_BIT(TIM3->CR1, TIM_CR1_CEN);
+	custom_TIM7_Init();
 
 	//Enable interrupt Routine for USART
 	SET_BIT(USART2->CR1, USART_CR1_RXNEIE_Msk);
-
-	//Enable interupt for TIM7
 
 	while (true) {
 
@@ -139,7 +134,7 @@ void custom_TIM7_Init(void) {
 	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
 	WRITE_REG(TIM7->CNT, 0);
 	WRITE_REG(TIM7->PSC, 62500 - 1);
-	WRITE_REG(TIM7->ARR, 100 - 1);
+	WRITE_REG(TIM7->ARR, 33 - 1);
 }
 
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
@@ -286,7 +281,7 @@ void custom_NVIC_Init(void) {
 void startNote(unsigned char c) {
 #define A0_OFFSET (21)
 	int8_t note = 42; // later use a key to note mapping function i.e. keyToNote ( c )
-	int8_t octave = 5;
+	int8_t octave = 1;
 
 	if (note >= 0) {
 		// Convert Notes from 0 to 15 to index
@@ -301,16 +296,18 @@ void startNote(unsigned char c) {
 
 		GPIOB->AFR[0] &= ~GPIO_AFRL_AFSEL4_Msk;
 		GPIOB->AFR[0] |= GPIO_AFRL_AFSEL4_0 * 0b0010;
-		//TIM_LED_PWM_Init(TIM3, 1);
+		TIM_LED_PWM_Init(TIM3, 1);
+
+
 
 		//For testing turn on the red LED
 		CLEAR_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
 
-		/*
+
 		//Start Timers
 		SET_BIT(TIM1->CR1, TIM_CR1_CEN);
 		SET_BIT(TIM2->CR1, TIM_CR1_CEN);
-		SET_BIT(TIM3->CR1, TIM_CR1_CEN);*/
+		SET_BIT(TIM3->CR1, TIM_CR1_CEN);
 
 		led_Handler(COLORS[(noteIndex + 4) % NUMBER_OF_COLORS]);
 
@@ -324,6 +321,9 @@ void stopNote(void) {
 	 TODO: Configure to forced output mode (LED, Speaker)
 	 */
 	SET_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
+	CLEAR_BIT(TIM1->CR1, TIM_CR1_CEN);
+	CLEAR_BIT(TIM2->CR1, TIM_CR1_CEN);
+	CLEAR_BIT(TIM3->CR1, TIM_CR1_CEN);
 }
 
 /**
