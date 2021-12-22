@@ -137,10 +137,10 @@ void custom_TIM7_Init(void) {
 	CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
 	WRITE_REG(TIM7->CNT, 0);
 	WRITE_REG(TIM7->PSC, 62500 - 1);
-	WRITE_REG(TIM7->ARR, 48);
+	WRITE_REG(TIM7->ARR, 50); //Set initial tone duration to roughly 0.2s
 
-	//Set initial volume pretty high
-	WRITE_REG(TIM2->CCR3, 1 << (8 - 1));
+	//Set initial volume in the middle
+	WRITE_REG(TIM2->CCR3, 1 << (4 - 1));
 }
 
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
@@ -219,16 +219,12 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 	SET_BIT(GPIOA->MODER, GPIO_MODER_MODE3_1);
 
 	// Alternate function AF7 PA2 and PA3
-	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk,
-			0x7 << GPIO_AFRL_AFSEL2_Pos);
-	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk,
-			0x7 << GPIO_AFRL_AFSEL3_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL2_Msk, 0x7 << GPIO_AFRL_AFSEL2_Pos);
+	MODIFY_REG(GPIOA->AFR[0], GPIO_AFRL_AFSEL3_Msk, 0x7 << GPIO_AFRL_AFSEL3_Pos);
 
 	// Set Speed high on PA2 and PA3
-	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk,
-			0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
-	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk,
-			0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED2_Msk, 0x3 << GPIO_OSPEEDR_OSPEED2_Pos);
+	MODIFY_REG(GPIOA->OSPEEDR, GPIO_OSPEEDR_OSPEED3_Msk, 0x3 << GPIO_OSPEEDR_OSPEED3_Pos);
 
 	// PA2 00 := No pull−up/ pull−down 01 := pull−up
 	SET_BIT(GPIOA->PUPDR, GPIO_PUPDR_PUPD2_0);
@@ -255,14 +251,7 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 	CLEAR_BIT(USARTx->CR1, USART_CR1_PCE);
 	//Set oversampling to 16
 	CLEAR_BIT(USARTx->CR1, USART_CR1_OVER8);
-	//Set Baud RAte 115200 on a 16MHz ref clk
-	//WRITE_REG(USARTx->BRR, 0x8B);
-	//Set Baud RAte 115200 on a 8MHz pclk clk **Watch in Sysclock init**
-	//WRITE_REG(USARTx->BRR, 0x45);
-	//Set Baud RAte 9600 on a 16MHz ref clk
-	// (16 MHz / 2) / (8 * 2 * 9600) * 100 = 5208.3333
-	// -> Id = 52
-	// (8.3333) * 8 * 2 = 133.33
+	//Set Baud RAte 115200 on a 16MHz ref clock
 	USART2->BRR = 0x45;
 	//Enable Transmisson and reception
 	SET_BIT(USARTx->CR1, (USART_CR1_TE | USART_CR1_RE));
@@ -325,7 +314,7 @@ void custom_NVIC_Init(void) {
 void startNote(unsigned char c) {
 #define A0_OFFSET (21)
 	int8_t note = keyToNote(c);
-	int8_t octave = 1;
+	static int8_t octave = 8;
 
 	if (note >= 0) {
 		// Convert Notes from 0 to 15 to index
@@ -346,12 +335,12 @@ void startNote(unsigned char c) {
 		//Start TIM7
 		SET_BIT(TIM7->CR1, TIM_CR1_CEN);
 	}
+	else {
+		pianoController(c, &octave);
+	}
 }
 
 void stopNote(void) {
-	/*
-	 TODO: Configure to forced output mode (LED, Speaker)
-	 */
 	SET_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
 	CLEAR_BIT(TIM1->CR1, TIM_CR1_CEN);
 	CLEAR_BIT(TIM2->CR1, TIM_CR1_CEN);
