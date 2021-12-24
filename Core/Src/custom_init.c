@@ -1,6 +1,6 @@
 #include "custom_init.h"
 
-
+//Initializes TIM1
 void custom_TIM1_Init(void) {
 	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_0);
 	SET_BIT(TIM1->CCMR1, TIM_CCMR1_OC2M_1);
@@ -13,6 +13,7 @@ void custom_TIM1_Init(void) {
 	SET_BIT(TIM1->EGR, TIM_EGR_UG);
 }
 
+//initializes TIM2
 void custom_TIM2_Init(void) {
 	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_0);
 	SET_BIT(TIM2->CCMR2, TIM_CCMR2_OC3M_1);
@@ -26,6 +27,7 @@ void custom_TIM2_Init(void) {
 	SET_BIT(TIM2->EGR, TIM_EGR_UG);
 }
 
+//Initializes TIM3
 void custom_TIM3_Init(void) {
 	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_0);
 	SET_BIT(TIM3->CCMR1, TIM_CCMR1_OC1M_1);
@@ -42,6 +44,7 @@ void custom_TIM3_Init(void) {
 	SET_BIT(TIM3->EGR, TIM_EGR_UG);
 }
 
+//Initializes TIM7
 void custom_TIM7_Init(void) {
 	SET_BIT(TIM7->CR1, TIM_CR1_ARPE);
 	SET_BIT(TIM7->CR1, TIM_CR1_URS);
@@ -54,6 +57,7 @@ void custom_TIM7_Init(void) {
 	WRITE_REG(TIM2->CCR3, 1 << (6 - 1)); //Set initial volume in the middle
 }
 
+//Function to initialize PWM for each RGB LED
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
 	// PWM Mode 1
 
@@ -72,6 +76,7 @@ void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {
 	t->EGR |= TIM_EGR_UG; // Clean start + Shadow Register update
 }
 
+//Initis the RGB LEDs and the Speaker
 void custom_DigitalOutput_Init() {
 	//Init GPIOs for PWM
 	//Red LED
@@ -107,6 +112,7 @@ void custom_DigitalOutput_Init() {
 	CLEAR_BIT(GPIOB->AFR[1], GPIO_AFRH_AFRH2_3);
 }
 
+//Inits the USART2
 void custom_USART2_Init(USART_TypeDef *USARTx) {
 	// PA2 USART2
 	CLEAR_BIT(GPIOA->MODER, GPIO_MODER_MODE2_0);
@@ -156,6 +162,7 @@ void custom_USART2_Init(USART_TypeDef *USARTx) {
 	SET_BIT(USARTx->CR1, USART_CR1_UE);
 }
 
+//Init the NVIC
 void custom_NVIC_Init(void) {
 	//Interrupt USART2
 	NVIC_SetPriority(USART2_IRQn, 2);
