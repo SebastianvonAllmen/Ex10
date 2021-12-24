@@ -29,12 +29,12 @@
 
 void SystemClock_Config(void);
 
+//Nicer Handles
 GPIO_TypeDef *GPIOA_handle = (GPIO_TypeDef*) GPIOA_BASE;
 GPIO_TypeDef *GPIOB_handle = (GPIO_TypeDef*) GPIOB_BASE;
 GPIO_TypeDef *GPIOC_handle = (GPIO_TypeDef*) GPIOC_BASE;
 
 //Function Defs
-
 void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]);
 void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer);
 void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength);
@@ -60,6 +60,7 @@ int main(void) {
 	custom_NVIC_Init();
 	custom_DigitalOutput_Init();
 
+	//Timer inits
 	custom_TIM1_Init();
 	custom_TIM2_Init();
 	custom_TIM3_Init();
@@ -75,12 +76,14 @@ int main(void) {
 	return EXIT_SUCCESS;
 }
 
+//Sets the value in the colors array to the corresponding CCR register for the RGB LED
 void led_Handler(const uint8_t colors[NUMBER_OF_CHANELS]) {
 	TIM3->CCR1 = colors[RED]; // R
 	TIM3->CCR2 = colors[GREEN]; // G
 	TIM1->CCR2 = colors[BLUE]; // B
 }
 
+//Writes one BYte at a time to the Stream, is no longer used in the current implementation
 void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength) {
 	for (uint32_t index = 0; index < msgLength; ++index) {
 		// Wait for transfer from DR to to shift register
@@ -95,6 +98,7 @@ void USART_Write(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t msgLength) {
 	}
 }
 
+//Reads in one Byte = char from the USART stream
 void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer) {
 	if (buffer) {
 		//Wait until data receives in the DR
@@ -105,15 +109,21 @@ void USART_ReadByte(USART_TypeDef *USARTx, uint8_t *buffer) {
 	}
 }
 
+//the
 void USART2_IRQHandler(void) {
 	unsigned char c;
 
 	USART_ReadByte(USART2, &c);
 	startNote(c);
+
+	//This part was included to test the functionallity of the USART but is no longer needed
+	/*
 	c = toupper(c);
 	USART_Write(USART2, &c, 1);
+	*/
 }
 
+//Interrupt Handler for TIM7, activates the stopNote function
 void TIM7_IRQHandler(void) {
 	if(READ_BIT(TIM7->SR, TIM_SR_UIF) != 0) {
 		CLEAR_BIT(TIM7->SR, TIM_SR_UIF);
@@ -121,9 +131,10 @@ void TIM7_IRQHandler(void) {
 	}
 }
 
+//Starts to play the current Note, also starts TIM7
 void startNote(unsigned char c) {
 	int8_t note = keyToNote(c);
-	static int8_t octave = 8;
+	static int8_t octave = 10;
 
 	if (note >= 0) {
 		// Convert Notes from 0 to 15 to index
@@ -149,6 +160,7 @@ void startNote(unsigned char c) {
 	}
 }
 
+//Stopes the current note from beeing played
 void stopNote(void) {
 	SET_BIT(GPIOB_handle->ODR, GPIO_ODR_ODR_4);
 	CLEAR_BIT(TIM1->CR1, TIM_CR1_CEN);

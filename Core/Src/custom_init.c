@@ -51,9 +51,7 @@ void custom_TIM7_Init(void) {
 	WRITE_REG(TIM7->CNT, 0);
 	WRITE_REG(TIM7->PSC, 62500 - 1);
 	WRITE_REG(TIM7->ARR, 50); //Set initial tone duration to roughly 0.2s
-
-	//Set initial volume in the middle
-	WRITE_REG(TIM2->CCR3, 1 << (4 - 1));
+	WRITE_REG(TIM2->CCR3, 1 << (6 - 1)); //Set initial volume in the middle
 }
 
 void TIM_LED_PWM_Init(TIM_TypeDef *t, int ccmr_num) {

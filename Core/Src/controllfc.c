@@ -1,5 +1,6 @@
 #include "controllfc.h"
 
+//This function maps every key entry to a note writen in int format
 int8_t keyToNote(unsigned char c) {
 	switch (c) {
 	case 'a':
@@ -39,9 +40,10 @@ int8_t keyToNote(unsigned char c) {
 	}
 }
 
+//This function handles all the other Buttons that manipulate how the piano sounds
 void pianoController(unsigned char c, int8_t *octave) {
-	static int8_t volume = 4;
-	static int8_t toneduration = 50;
+	static int8_t volume = 6; //Set inital volume to somewhere in the middle
+	static int8_t toneduration = 50; //Set initial tone duration to roughly 0.2s
 	switch (c) {
 	case 'y':
 		if ((*octave) > 0) //If octave is not between 0-16 we have run in to a problem
